@@ -1,0 +1,8 @@
+{
+  "name": "Lordbank Dashboard",
+  "description": "A modern, responsive HR and team management dashboard with interactive charts and analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
