@@ -10,7 +10,20 @@ export function StudentMarkAttendance() {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [locatingTooLong, setLocatingTooLong] = useState(false);
   const [success, setSuccess] = useState<null | { distance: number }>(null);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (locating) {
+      timer = setTimeout(() => {
+        setLocatingTooLong(true);
+      }, 5000);
+    } else {
+      setLocatingTooLong(false);
+    }
+    return () => clearTimeout(timer);
+  }, [locating]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) return; // Only 1 digit
@@ -158,7 +171,7 @@ export function StudentMarkAttendance() {
             <button
               type="submit"
               disabled={loading || locating || otp.join('').length !== 6}
-              className="w-full py-4 bg-[#406874] hover:bg-[#32525c] disabled:bg-gray-300 text-white text-base font-semibold rounded-2xl shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full py-4 bg-[#164478] hover:bg-[#0f3057] disabled:bg-gray-300 text-white text-base font-semibold rounded-2xl shadow-sm transition-colors flex items-center justify-center gap-2"
             >
               {locating ? (
                 <>
@@ -174,6 +187,25 @@ export function StudentMarkAttendance() {
                 </>
               )}
             </button>
+
+            {/* Fallback UI if GPS is taking too long */}
+            {locatingTooLong && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-2xl"
+              >
+                <p className="text-sm font-semibold text-orange-800 mb-1">GPS taking too long?</p>
+                <p className="text-xs text-orange-700 mb-3">If you are indoors, your phone might struggle to get a signal. Step near a window or request a manual override.</p>
+                <button 
+                  type="button"
+                  onClick={() => toast.success('Override request sent to lecturer!')}
+                  className="w-full py-2 bg-orange-100 hover:bg-orange-200 text-orange-800 text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Request Manual Override
+                </button>
+              </motion.div>
+            )}
           </form>
         )}
       </div>

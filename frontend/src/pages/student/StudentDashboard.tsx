@@ -47,6 +47,20 @@ export function StudentDashboard() {
 
   return (
     <div className="w-full space-y-6">
+      
+      {/* Low Attendance Warning Banner */}
+      {stats && stats.attendancePercentage < 80 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm flex items-start gap-4">
+          <div className="bg-red-100 text-red-500 rounded-full p-2 shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-red-800 font-semibold text-sm">Action Required: Low Attendance</h3>
+            <p className="text-red-700 text-sm mt-1">Your overall attendance has fallen below the required 80% threshold. Please contact your academic advisor immediately.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header section matching Crextio design */}
       <div className="mb-4">
         <h1 className="text-4xl font-light text-gray-900 tracking-tight">
@@ -118,14 +132,22 @@ export function StudentDashboard() {
                   <UserCheck className="w-5 h-5 text-gray-300 mb-1" />
                 </div>
               </div>
-              <div className="bg-[#eef3f9] rounded-[2rem] p-6 shadow-inner border border-gray-200 flex flex-col justify-between hidden sm:flex">
-                <p className="text-[#164478] font-medium text-sm mb-2">Academic Standing</p>
+              <div className={`rounded-[2rem] p-6 shadow-inner border flex flex-col justify-between hidden sm:flex ${
+                (stats?.attendancePercentage || 0) >= 80 ? 'bg-[#eef3f9] border-gray-200' : 'bg-red-50 border-red-100'
+              }`}>
+                <p className={`font-medium text-sm mb-2 ${
+                  (stats?.attendancePercentage || 0) >= 80 ? 'text-[#164478]' : 'text-red-700'
+                }`}>Academic Standing</p>
                 <div className="flex items-end justify-between">
-                  <p className="text-2xl font-medium text-[#164478]">
+                  <p className={`text-2xl font-medium ${
+                    (stats?.attendancePercentage || 0) >= 80 ? 'text-[#164478]' : 'text-red-700'
+                  }`}>
                     {(stats?.attendancePercentage || 0) >= 80 ? 'Good' : 'At Risk'}
                   </p>
                 </div>
-                <div className="w-full bg-[#164478]/10 h-2 rounded-full mt-4 overflow-hidden">
+                <div className={`w-full h-2 rounded-full mt-4 overflow-hidden ${
+                  (stats?.attendancePercentage || 0) >= 80 ? 'bg-[#164478]/10' : 'bg-red-200'
+                }`}>
                   <div 
                     className={`h-full rounded-full ${(stats?.attendancePercentage || 0) >= 80 ? 'bg-[#164478]' : 'bg-red-500'}`} 
                     style={{ width: `${stats?.attendancePercentage || 0}%` }}
