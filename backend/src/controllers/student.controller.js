@@ -22,7 +22,7 @@ export const studentController = {
       // 2. Get attendance records to calculate percentage
       const { data: attendanceData, error: attendanceError } = await supabaseAdmin
         .from('attendance')
-        .select('status')
+        .select('status, session_id')
         .eq('student_id', studentId);
 
       if (attendanceError) throw attendanceError;
@@ -60,10 +60,39 @@ export const studentController = {
         subjectName: session.sessions?.subjects?.name || 'N/A'
       }));
 
+      // 4. Calculate subject-specific attendance
+      const { data: enrollmentsData } = await supabaseAdmin
+        .from('enrollments')
+        .select('subject_id, subjects(code, name)')
+        .eq('student_id', studentId);
+        
+      const { data: allSessions } = await supabaseAdmin
+        .from('sessions')
+        .select('id, subject_id');
+
+      const subjectStats = (enrollmentsData || []).map(e => {
+        const subId = e.subject_id;
+        const subSessions = allSessions?.filter(s => s.subject_id === subId) || [];
+        const total = subSessions.length;
+        
+        if (total === 0) return { ...e.subjects, percentage: 100 }; // No classes yet
+        
+        const presentCount = attendanceData.filter(
+          a => a.status === 'present' || a.status === 'manual_override'
+        ).filter(a => subSessions.find(s => s.id === a.session_id)).length;
+        
+        return {
+          code: e.subjects.code,
+          name: e.subjects.name,
+          percentage: Math.round((presentCount / total) * 100)
+        };
+      });
+
       return res.status(200).json({
         totalEnrolled: enrolledCount || 0,
         attendancePercentage,
-        recentSessions: formattedRecent
+        recentSessions: formattedRecent,
+        subjectStats
       });
     } catch (err) {
       console.error('Error fetching student dashboard stats:', err);
@@ -83,7 +112,7 @@ export const studentController = {
       // In a real app, this should be scoped by the current active semester
       const { data: activeSemesters } = await supabaseAdmin
         .from('semesters')
-        .select('id')
+        .select('id, semester_number, enrollment_open')
         .eq('is_active', true)
         .single();
         
@@ -100,16 +129,32 @@ export const studentController = {
 
       const enrolledSubjectIds = enrollments ? enrollments.map(e => e.subject_id) : [];
 
+      const { showAll } = req.query;
+
       // Get all active subjects
       let query = supabaseAdmin
         .from('subjects')
         .select(`
-          id, code, name, credits, year_of_study, semester,
+          id, code, name, credits, year_of_study, semester, departments,
           subject_lecturers (
             profiles (full_name)
           )
         `)
         .eq('is_active', true);
+
+      // Filter by department and year unless "showAll" is requested
+      if (showAll !== 'true') {
+        if (req.user.department) {
+          query = query.contains('departments', [req.user.department]);
+        }
+        if (req.user.year_of_study) {
+          query = query.eq('year_of_study', req.user.year_of_study);
+        }
+        // Also only show subjects for the global active semester
+        if (activeSemesters.semester_number) {
+           query = query.eq('semester', activeSemesters.semester_number);
+        }
+      }
 
       const { data: subjects, error } = await query;
       if (error) throw error;
@@ -150,12 +195,16 @@ export const studentController = {
       // Get current active semester
       const { data: activeSemester } = await supabaseAdmin
         .from('semesters')
-        .select('id')
+        .select('id, enrollment_open')
         .eq('is_active', true)
         .single();
 
       if (!activeSemester) {
         return res.status(400).json({ error: 'No active semester found for enrollment' });
+      }
+
+      if (!activeSemester.enrollment_open) {
+        return res.status(403).json({ error: 'Enrollment period is currently closed' });
       }
 
       // Insert enrollment
@@ -164,7 +213,8 @@ export const studentController = {
         .insert({
           student_id: studentId,
           subject_id: subjectId,
-          semester_id: activeSemester.id
+          semester_id: activeSemester.id,
+          status: 'pending'
         });
 
       if (error) {
@@ -174,7 +224,7 @@ export const studentController = {
         throw error;
       }
 
-      return res.status(201).json({ message: 'Successfully enrolled in subject' });
+      return res.status(201).json({ message: 'Successfully requested enrollment. Waiting for approval.' });
     } catch (err) {
       console.error('Error enrolling in subject:', err);
       return res.status(500).json({ error: 'Failed to enroll in subject' });

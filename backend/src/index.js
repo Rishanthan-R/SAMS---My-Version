@@ -29,8 +29,9 @@ app.use(cors({
   credentials: true,
 }));
 
-// Parse JSON bodies
-app.use(express.json());
+// Parse JSON bodies (increased limit for bulk CSV uploads)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Global rate limiting
 const globalLimiter = rateLimit({

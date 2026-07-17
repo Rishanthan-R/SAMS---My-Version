@@ -18,10 +18,12 @@ export function StudentEnroll() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const fetchSubjects = async () => {
     try {
-      const data = await apiClient('/api/student/subjects/available', {
+      setLoading(true);
+      const data = await apiClient(`/api/student/subjects/available?showAll=${showAll}`, {
         token: session?.access_token
       });
       setSubjects(data);
@@ -35,17 +37,17 @@ export function StudentEnroll() {
 
   useEffect(() => {
     if (session?.access_token) fetchSubjects();
-  }, [session]);
+  }, [session, showAll]);
 
   const handleEnroll = async (subjectId: string) => {
     setEnrollingId(subjectId);
     try {
-      await apiClient('/api/student/enroll', {
+      const res = await apiClient('/api/student/enroll', {
         method: 'POST',
         body: { subjectId },
         token: session?.access_token
       });
-      toast.success('Successfully enrolled in subject!');
+      toast.success(res.message || 'Successfully enrolled in subject!');
       // Remove from list
       setSubjects(subjects.filter(s => s.id !== subjectId));
     } catch (err: any) {
@@ -68,15 +70,26 @@ export function StudentEnroll() {
           <p className="text-sm text-gray-500 mt-1">Browse and enroll in subjects for the current semester</p>
         </div>
 
-        <div className="relative w-full md:w-64 shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search subjects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#8ce0a3]/30 focus:border-[#8ce0a3] transition-all"
-          />
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer bg-white px-4 py-2 border border-gray-200 rounded-full shadow-sm">
+            <input 
+              type="checkbox" 
+              checked={showAll} 
+              onChange={e => setShowAll(e.target.checked)} 
+              className="w-4 h-4 text-[#8ce0a3] rounded border-gray-300 focus:ring-[#8ce0a3]"
+            />
+            Show All Subjects (Electives)
+          </label>
+          <div className="relative w-full md:w-64 shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search subjects..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#8ce0a3]/30 focus:border-[#8ce0a3] transition-all"
+            />
+          </div>
         </div>
       </div>
 

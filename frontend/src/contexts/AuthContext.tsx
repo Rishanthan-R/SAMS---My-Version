@@ -13,6 +13,7 @@ interface UserProfile {
   semester?: number;
   department?: string;
   phone?: string;
+  force_password_reset?: boolean;
 }
 
 interface AuthContextType {

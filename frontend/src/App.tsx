@@ -11,6 +11,8 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { SetupPasswordPage } from './pages/auth/SetupPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 
 // Dashboards
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -42,6 +44,8 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/setup-password" element={<SetupPasswordPage />} />
 
           {/* Protected Routes (Dashboard Layout) */}
           <Route element={<DashboardLayout />}>

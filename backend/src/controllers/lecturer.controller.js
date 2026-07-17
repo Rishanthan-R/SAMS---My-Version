@@ -122,6 +122,48 @@ export const lecturerController = {
         return res.status(403).json({ error: 'Not assigned to this subject' });
       }
 
+      // Timetable validation
+      const { data: timetables } = await supabaseAdmin
+        .from('timetables')
+        .select('*')
+        .eq('subject_id', subjectId);
+
+      if (timetables && timetables.length > 0) {
+        const now = new Date();
+        const dayMap = { 0: 7, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6 };
+        const currentDay = dayMap[now.getDay()];
+        
+        const currentHour = now.getHours().toString().padStart(2, '0');
+        const currentMinute = now.getMinutes().toString().padStart(2, '0');
+        const currentTime = `${currentHour}:${currentMinute}:00`;
+        
+        // Convert time string "HH:MM:SS" to minutes for easier buffer comparison
+        const toMinutes = (timeStr) => {
+          const [h, m] = timeStr.split(':').map(Number);
+          return h * 60 + m;
+        };
+
+        const currentMins = toMinutes(currentTime);
+        let isWithinTimetable = false;
+
+        for (const t of timetables) {
+          if (t.day_of_week === currentDay) {
+            const startMins = toMinutes(t.start_time);
+            const endMins = toMinutes(t.end_time);
+            
+            // Allow 15 mins early start, and allow up to end time
+            if (currentMins >= (startMins - 15) && currentMins <= endMins) {
+              isWithinTimetable = true;
+              break;
+            }
+          }
+        }
+
+        if (!isWithinTimetable) {
+          return res.status(403).json({ error: 'Cannot generate OTP outside of scheduled timetable hours.' });
+        }
+      }
+
       // Invalidate any existing active OTPs for this lecturer
       await supabaseAdmin
         .from('otp_sessions')
@@ -391,6 +433,158 @@ export const lecturerController = {
     } catch (err) {
       console.error('Error fetching live session:', err);
       return res.status(500).json({ error: 'Failed to fetch live session data' });
+    }
+  },
+
+  /**
+   * GET /api/lecturer/subjects/:id/report
+   * Returns a semester summary report for the subject
+   */
+  async getSubjectReport(req, res) {
+    try {
+      const { id: subjectId } = req.params;
+      const lecturerId = req.user.id;
+
+      // Verify lecturer assignment
+      const { data: assignment } = await supabaseAdmin
+        .from('subject_lecturers')
+        .select('id, subjects(code, name)')
+        .eq('subject_id', subjectId)
+        .eq('lecturer_id', lecturerId)
+        .single();
+      
+      if (!assignment) return res.status(403).json({ error: 'Access denied' });
+
+      // Fetch all sessions for this subject
+      const { data: sessions } = await supabaseAdmin
+        .from('sessions')
+        .select('id')
+        .eq('subject_id', subjectId);
+      
+      const totalSessions = sessions ? sessions.length : 0;
+      const sessionIds = sessions ? sessions.map(s => s.id) : [];
+
+      // Fetch all students enrolled
+      const { data: enrollments } = await supabaseAdmin
+        .from('enrollments')
+        .select('student_id, profiles(full_name, reg_no)')
+        .eq('subject_id', subjectId);
+      
+      // Fetch all attendance records for these sessions
+      let attendanceData = [];
+      if (sessionIds.length > 0) {
+        const { data: att } = await supabaseAdmin
+          .from('attendance')
+          .select('student_id')
+          .in('session_id', sessionIds)
+          .in('status', ['present', 'manual_override']);
+        attendanceData = att || [];
+      }
+
+      // Calculate attendance per student
+      const report = (enrollments || []).map(e => {
+        const studentPresentCount = attendanceData.filter(a => a.student_id === e.student_id).length;
+        const percentage = totalSessions === 0 ? 0 : Math.round((studentPresentCount / totalSessions) * 100);
+        return {
+          studentId: e.student_id,
+          name: e.profiles?.full_name,
+          regNo: e.profiles?.reg_no,
+          presentCount: studentPresentCount,
+          totalSessions,
+          percentage
+        };
+      });
+
+      return res.status(200).json({
+        subject: assignment.subjects,
+        report
+      });
+    } catch (err) {
+      console.error('Error generating subject report:', err);
+      return res.status(500).json({ error: 'Failed to generate report' });
+    }
+  },
+
+  /**
+   * GET /api/lecturer/subjects/:id/enrollments
+   * Fetch all enrollments for a specific subject
+   */
+  async getSubjectEnrollments(req, res) {
+    try {
+      const { id: subjectId } = req.params;
+      const lecturerId = req.user.id;
+
+      // Verify lecturer assignment
+      const { data: assignment } = await supabaseAdmin
+        .from('subject_lecturers')
+        .select('id')
+        .eq('subject_id', subjectId)
+        .eq('lecturer_id', lecturerId)
+        .single();
+      
+      if (!assignment) return res.status(403).json({ error: 'Access denied' });
+
+      const { data: enrollments, error } = await supabaseAdmin
+        .from('enrollments')
+        .select(`
+          id, status, student_id,
+          profiles (full_name, reg_no, year_of_study, semester, department)
+        `)
+        .eq('subject_id', subjectId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return res.status(200).json(enrollments);
+    } catch (err) {
+      console.error('Error fetching subject enrollments:', err);
+      return res.status(500).json({ error: 'Failed to fetch enrollments' });
+    }
+  },
+
+  /**
+   * PUT /api/lecturer/enrollments/:id/status
+   * Update the status of an enrollment (active, rejected)
+   */
+  async updateEnrollmentStatus(req, res) {
+    try {
+      const { id: enrollmentId } = req.params;
+      const { status } = req.body; // 'active', 'rejected'
+      const lecturerId = req.user.id;
+
+      if (!['active', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
+
+      // We need to verify that this enrollment belongs to a subject this lecturer teaches
+      const { data: enrollment } = await supabaseAdmin
+        .from('enrollments')
+        .select('subject_id')
+        .eq('id', enrollmentId)
+        .single();
+
+      if (!enrollment) return res.status(404).json({ error: 'Enrollment not found' });
+
+      const { data: assignment } = await supabaseAdmin
+        .from('subject_lecturers')
+        .select('id')
+        .eq('subject_id', enrollment.subject_id)
+        .eq('lecturer_id', lecturerId)
+        .single();
+
+      if (!assignment) return res.status(403).json({ error: 'Access denied' });
+
+      const { error } = await supabaseAdmin
+        .from('enrollments')
+        .update({ status })
+        .eq('id', enrollmentId);
+
+      if (error) throw error;
+
+      return res.status(200).json({ message: `Enrollment status updated to ${status}` });
+    } catch (err) {
+      console.error('Error updating enrollment status:', err);
+      return res.status(500).json({ error: 'Failed to update enrollment status' });
     }
   }
 };

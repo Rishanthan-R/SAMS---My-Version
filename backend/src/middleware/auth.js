@@ -24,7 +24,7 @@ export async function authenticate(req, res, next) {
     // Fetch the user's profile to get their role
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('role, full_name, is_active, deleted_at')
+      .select('role, full_name, is_active, deleted_at, department, year_of_study')
       .eq('id', user.id)
       .single();
 
@@ -43,6 +43,8 @@ export async function authenticate(req, res, next) {
       email: user.email,
       role: profile.role,
       full_name: profile.full_name,
+      department: profile.department,
+      year_of_study: profile.year_of_study,
     };
 
     next();

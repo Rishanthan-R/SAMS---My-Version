@@ -30,6 +30,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" replace />;
   }
 
+  // Force password reset check
+  if (profile.force_password_reset) {
+    return <Navigate to="/setup-password" replace />;
+  }
+
   // Role check
   if (allowedRoles && !allowedRoles.includes(profile.role)) {
     // Redirect to the user's correct dashboard

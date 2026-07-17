@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   department TEXT,
   phone TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
+  force_password_reset BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   deleted_at TIMESTAMPTZ
 );
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS semesters (
   enrollment_deadline DATE NOT NULL,
   end_date DATE NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT false,
+  enrollment_open BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -54,6 +56,7 @@ CREATE TABLE IF NOT EXISTS subjects (
   credits INTEGER NOT NULL DEFAULT 3,
   year_of_study INTEGER NOT NULL CHECK (year_of_study BETWEEN 1 AND 4),
   semester INTEGER NOT NULL CHECK (semester BETWEEN 1 AND 2),
+  departments TEXT[],                     -- array of departments e.g. '{"Computer Science"}'
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -61,7 +64,22 @@ CREATE TABLE IF NOT EXISTS subjects (
 CREATE INDEX idx_subjects_year_semester ON subjects(year_of_study, semester);
 
 -- =============================================================
--- 4. SUBJECT–LECTURER ASSIGNMENTS
+-- 4. TIMETABLES
+-- =============================================================
+CREATE TABLE IF NOT EXISTS timetables (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 7), -- 1=Monday, 7=Sunday
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_time_order CHECK (start_time < end_time)
+);
+
+CREATE INDEX idx_timetables_subject ON timetables(subject_id);
+
+-- =============================================================
+-- 5. SUBJECT–LECTURER ASSIGNMENTS
 -- =============================================================
 CREATE TABLE IF NOT EXISTS subject_lecturers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -81,6 +99,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
   student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
   semester_id UUID NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_enrollment UNIQUE (student_id, subject_id, semester_id)
 );
@@ -173,6 +192,7 @@ $$;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE semesters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timetables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subject_lecturers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE enrollments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_sessions ENABLE ROW LEVEL SECURITY;
@@ -207,6 +227,15 @@ CREATE POLICY "Authenticated users can view semesters" ON semesters
   FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Admins can manage semesters" ON semesters
+  FOR ALL USING (
+    get_my_role() = 'admin'
+  );
+
+-- Timetables: readable by all authenticated users
+CREATE POLICY "Authenticated users can view timetables" ON timetables
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage timetables" ON timetables
   FOR ALL USING (
     get_my_role() = 'admin'
   );

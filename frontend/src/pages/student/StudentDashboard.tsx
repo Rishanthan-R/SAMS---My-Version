@@ -15,6 +15,11 @@ interface DashboardStats {
     subjectCode: string;
     subjectName: string;
   }[];
+  subjectStats: {
+    code: string;
+    name: string;
+    percentage: number;
+  }[];
 }
 
 export function StudentDashboard() {
@@ -49,15 +54,19 @@ export function StudentDashboard() {
     <div className="w-full space-y-6">
       
       {/* Low Attendance Warning Banner */}
-      {stats && stats.attendancePercentage < 80 && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm flex items-start gap-4">
-          <div className="bg-red-100 text-red-500 rounded-full p-2 shrink-0">
-            <UserCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-red-800 font-semibold text-sm">Action Required: Low Attendance</h3>
-            <p className="text-red-700 text-sm mt-1">Your overall attendance has fallen below the required 80% threshold. Please contact your academic advisor immediately.</p>
-          </div>
+      {stats?.subjectStats && stats.subjectStats.some(s => s.percentage < 80) && (
+        <div className="flex flex-col gap-3">
+          {stats.subjectStats.filter(s => s.percentage < 80).map(sub => (
+            <div key={sub.code} className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm flex items-start gap-4">
+              <div className="bg-red-100 text-red-500 rounded-full p-2 shrink-0">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-red-800 font-semibold text-sm">Action Required: Low Attendance in {sub.code}</h3>
+                <p className="text-red-700 text-sm mt-1">Your attendance for <strong>{sub.name}</strong> has fallen to <strong>{sub.percentage}%</strong>, which is below the required 80% threshold. Please contact your lecturer.</p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

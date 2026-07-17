@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { BookOpen, MapPin, Target, CheckCircle2, Navigation } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { BookOpen, MapPin, Target, CheckCircle2, Navigation, QrCode, Keyboard } from 'lucide-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -12,6 +13,9 @@ export function StudentMarkAttendance() {
   const [locating, setLocating] = useState(false);
   const [locatingTooLong, setLocatingTooLong] = useState(false);
   const [success, setSuccess] = useState<null | { distance: number }>(null);
+  
+  const [scanMode, setScanMode] = useState(false);
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -44,6 +48,41 @@ export function StudentMarkAttendance() {
       prevInput?.focus();
     }
   };
+
+  useEffect(() => {
+    if (scanMode && !success) {
+      scannerRef.current = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
+
+      scannerRef.current.render((decodedText) => {
+        try {
+          const data = JSON.parse(decodedText);
+          if (data.otp) {
+            scannerRef.current?.clear();
+            setScanMode(false);
+            setOtp(data.otp.split(''));
+            // Trigger submit after a tiny delay so state updates
+            setTimeout(() => {
+               document.getElementById('submit-attendance-btn')?.click();
+            }, 100);
+          }
+        } catch (e) {
+          toast.error("Invalid QR Code");
+        }
+      }, (error) => {
+        // ignore errors while scanning
+      });
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(console.error);
+      }
+    };
+  }, [scanMode, success]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,33 +184,60 @@ export function StudentMarkAttendance() {
               </div>
             </div>
 
-            {/* OTP Inputs */}
-            <div className="mb-10">
-              <label className="block text-center text-sm font-medium text-gray-700 mb-6">
-                Enter 6-Digit OTP
-              </label>
-              <div className="flex justify-center gap-2 sm:gap-4">
-                {otp.map((digit, index) => (
-                  <input
-                    key={index}
-                    id={`otp-${index}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(index, e.target.value.replace(/[^0-9]/g, ''))}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:bg-white focus:border-[#8ce0a3] focus:ring-2 focus:ring-[#8ce0a3]/20 transition-all"
-                  />
-                ))}
+            {/* Mode Switcher */}
+            <div className="flex justify-center mb-8">
+              <div className="bg-gray-100 p-1 rounded-xl inline-flex">
+                <button
+                  type="button"
+                  onClick={() => setScanMode(false)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!scanMode ? 'bg-white text-[#164478] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <Keyboard className="w-4 h-4" /> Enter OTP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanMode(true)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scanMode ? 'bg-white text-[#164478] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <QrCode className="w-4 h-4" /> Scan QR
+                </button>
               </div>
             </div>
 
+            {scanMode ? (
+              <div className="mb-10 text-center">
+                <div id="qr-reader" className="mx-auto overflow-hidden rounded-2xl border-2 border-[#8ce0a3] max-w-sm"></div>
+                <p className="text-sm text-gray-500 mt-4">Point your camera at the QR code shown by your lecturer.</p>
+              </div>
+            ) : (
+              <div className="mb-10">
+                <label className="block text-center text-sm font-medium text-gray-700 mb-6">
+                  Enter 6-Digit OTP
+                </label>
+                <div className="flex justify-center gap-2 sm:gap-4">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      id={`otp-${index}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value.replace(/[^0-9]/g, ''))}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:bg-white focus:border-[#8ce0a3] focus:ring-2 focus:ring-[#8ce0a3]/20 transition-all"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
+              id="submit-attendance-btn"
               type="submit"
               disabled={loading || locating || otp.join('').length !== 6}
-              className="w-full py-4 bg-[#164478] hover:bg-[#0f3057] disabled:bg-gray-300 text-white text-base font-semibold rounded-2xl shadow-sm transition-colors flex items-center justify-center gap-2"
+              className={`w-full py-4 bg-[#164478] hover:bg-[#0f3057] disabled:bg-gray-300 text-white text-base font-semibold rounded-2xl shadow-sm transition-colors flex items-center justify-center gap-2 ${scanMode && otp.join('').length !== 6 ? 'hidden' : ''}`}
             >
               {locating ? (
                 <>

@@ -14,6 +14,9 @@ router.get('/dashboard', lecturerController.getDashboardStats);
 
 // Subjects
 router.get('/subjects', lecturerController.getMySubjects);
+router.get('/subjects/:id/report', lecturerController.getSubjectReport);
+router.get('/subjects/:id/enrollments', lecturerController.getSubjectEnrollments);
+router.put('/enrollments/:id/status', lecturerController.updateEnrollmentStatus);
 
 // OTP Generation & Session Management
 router.post('/otp/generate', lecturerController.generateOTP);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 import { KeyRound, MapPin, Navigation, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/api';
@@ -155,12 +156,23 @@ export function LecturerGenerateOTP() {
             <p className="text-sm text-gray-500 font-medium mb-4 uppercase tracking-widest">Share this code with students</p>
             
             {/* The giant OTP display */}
-            <div className="flex justify-center gap-4 mb-10">
-              {activeOtp.split('').map((digit, idx) => (
-                <div key={idx} className="w-16 h-24 sm:w-24 sm:h-32 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-center text-5xl sm:text-7xl font-bold text-gray-900 shadow-inner">
-                  {digit}
-                </div>
-              ))}
+            <div className="flex flex-col lg:flex-row items-center justify-center gap-8 mb-10">
+              <div className="flex gap-4">
+                {activeOtp.split('').map((digit, idx) => (
+                  <div key={idx} className="w-16 h-24 sm:w-20 sm:h-28 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-center text-5xl sm:text-6xl font-bold text-gray-900 shadow-inner">
+                    {digit}
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex-shrink-0">
+                <QRCode 
+                  value={JSON.stringify({ otp: activeOtp })} 
+                  size={160} 
+                  level="H"
+                  className="mx-auto"
+                />
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-3 text-center">Scan with SAMS App</p>
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-8">
