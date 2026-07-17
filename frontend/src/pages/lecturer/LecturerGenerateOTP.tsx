@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { KeyRound, MapPin, Navigation, Clock } from 'lucide-react';
+import { KeyRound, MapPin, Navigation, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -23,7 +23,11 @@ export function LecturerGenerateOTP() {
   
   const [generating, setGenerating] = useState(false);
   const [activeOtp, setActiveOtp] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
+
+  const [presentStudents, setPresentStudents] = useState<any[]>([]);
+  const [absentStudents, setAbsentStudents] = useState<any[]>([]);
 
   // Load subjects
   useEffect(() => {
@@ -49,8 +53,32 @@ export function LecturerGenerateOTP() {
     if (timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft(prev => Math.max(0, prev - 1)), 1000);
       return () => clearInterval(timer);
+    } else if (timeLeft === 0 && activeOtp) {
+      setActiveOtp(null);
+      setActiveSessionId(null);
     }
-  }, [timeLeft]);
+  }, [timeLeft, activeOtp]);
+
+  // Poll for live session data
+  useEffect(() => {
+    if (!activeSessionId || timeLeft === 0) return;
+    
+    const fetchLiveSession = async () => {
+      try {
+        const data = await apiClient(`/api/lecturer/otp-sessions/${activeSessionId}/live`, { 
+          token: session?.access_token 
+        });
+        setPresentStudents(data.present);
+        setAbsentStudents(data.absent);
+      } catch (err) {
+        console.error('Failed to fetch live session data', err);
+      }
+    };
+
+    fetchLiveSession(); // Initial fetch
+    const poll = setInterval(fetchLiveSession, 3000);
+    return () => clearInterval(poll);
+  }, [activeSessionId, timeLeft]);
 
   const handleGenerate = async () => {
     if (!selectedSubject) {
@@ -80,6 +108,7 @@ export function LecturerGenerateOTP() {
           });
           
           setActiveOtp(data.otp);
+          setActiveSessionId(data.otpSessionId);
           const seconds = differenceInSeconds(parseISO(data.expiresAt), new Date());
           setTimeLeft(Math.max(0, seconds));
           toast.success('Session started successfully!');
@@ -155,9 +184,48 @@ export function LecturerGenerateOTP() {
               </div>
             </div>
 
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-400 mb-8">
               The session will automatically expire and invalidate the OTP when the timer reaches zero.
             </p>
+
+            {/* LIVE ABSENTEE TRACKING */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left mt-8 border-t border-gray-100 pt-8">
+              <div>
+                <h3 className="font-semibold text-green-700 flex items-center gap-2 mb-4 bg-green-50 p-2 rounded-xl border border-green-100">
+                  <CheckCircle2 className="w-5 h-5" /> Checked In ({presentStudents.length})
+                </h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                  {presentStudents.length === 0 ? (
+                    <p className="text-sm text-gray-400">Waiting for students...</p>
+                  ) : (
+                    presentStudents.map(student => (
+                      <div key={student.id} className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-sm">
+                        <p className="font-medium text-gray-900">{student.name}</p>
+                        <p className="text-gray-500 text-xs">{student.regNo}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-gray-500 flex items-center gap-2 mb-4 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                  <XCircle className="w-5 h-5" /> Pending/Absent ({absentStudents.length})
+                </h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2 opacity-70">
+                  {absentStudents.length === 0 ? (
+                    <p className="text-sm text-gray-400">Everyone checked in!</p>
+                  ) : (
+                    absentStudents.map(student => (
+                      <div key={student.id} className="border border-dashed border-gray-200 rounded-lg p-3 text-sm">
+                        <p className="font-medium text-gray-700">{student.name}</p>
+                        <p className="text-gray-500 text-xs">{student.regNo}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         ) : (
           // SETUP VIEW

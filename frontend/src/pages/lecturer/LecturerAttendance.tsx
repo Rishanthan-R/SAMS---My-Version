@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Search, ChevronLeft, MapPin, CalendarDays, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Search, ChevronLeft, MapPin, CalendarDays, CheckCircle2, XCircle, Download, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiClient } from '../../lib/api';
 import { format, parseISO } from 'date-fns';
@@ -14,6 +14,7 @@ interface Session {
 }
 
 interface AttendanceDetail {
+  studentId: string;
   studentName: string;
   regNo: string;
   status: string;
@@ -66,6 +67,48 @@ export function LecturerAttendance() {
     }
   };
 
+  const handleExport = () => {
+    if (!selectedSession || details.length === 0) return;
+    const headers = ['Student Name', 'Reg No', 'Status', 'Time Marked', 'Distance (m)'];
+    const csvContent = [
+      headers.join(','),
+      ...details.map(d => [
+        `"${d.studentName}"`,
+        d.regNo || '',
+        d.status,
+        d.timeMarked ? format(parseISO(d.timeMarked), 'h:mm a') : '',
+        d.distance !== null ? d.distance : ''
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_${selectedSession.subjectCode}_${format(parseISO(selectedSession.date), 'yyyy-MM-dd')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleOverride = async (studentId: string) => {
+    if (!confirm('Mark this student as manually present? This will bypass GPS verification.')) return;
+    try {
+      await apiClient(`/api/lecturer/sessions/${selectedSession?.id}/override`, {
+        method: 'POST',
+        token: authSession?.access_token,
+        body: JSON.stringify({ studentId })
+      });
+      if (selectedSession) {
+        handleViewDetails(selectedSession); // Refresh
+      }
+    } catch (err: any) {
+      alert(err.message || 'Override failed');
+    }
+  };
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
@@ -115,17 +158,25 @@ export function LecturerAttendance() {
         </div>
 
         <div className="bg-white rounded-[2rem] shadow-sm border border-gray-50 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between gap-4">
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
             <h3 className="text-lg font-semibold text-gray-900">Student Attendance List</h3>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search student..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#8ce0a3]/30 focus:bg-white transition-all"
-              />
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search student..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#164478]/30 focus:bg-white transition-all"
+                />
+              </div>
+              <button 
+                onClick={handleExport}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-[#164478] hover:bg-[#0f3057] text-white rounded-full text-sm font-medium transition-colors"
+              >
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
             </div>
           </div>
 
@@ -152,8 +203,12 @@ export function LecturerAttendance() {
                       <td className="px-6 py-4 text-sm text-gray-500">{d.regNo || 'N/A'}</td>
                       <td className="px-6 py-4">
                         {d.status === 'present' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#8ce0a3]/20 text-green-700">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Present
+                          </span>
+                        ) : d.status === 'manual_override' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-100 text-[#164478]">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Manual
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-red-100 text-red-700">
@@ -167,9 +222,18 @@ export function LecturerAttendance() {
                       <td className="px-6 py-4 text-right">
                         {d.status === 'present' && d.distance !== null ? (
                           <span className="inline-flex items-center justify-end gap-1 text-sm text-gray-500">
-                            <MapPin className="w-4 h-4 text-[#406874]" /> {d.distance}m
+                            <MapPin className="w-4 h-4 text-blue-500" /> {d.distance}m
                           </span>
-                        ) : '—'}
+                        ) : d.status === 'manual_override' ? (
+                          <span className="text-xs text-gray-400 font-medium">Overridden</span>
+                        ) : (
+                          <button 
+                            onClick={() => handleOverride(d.studentId!)}
+                            className="text-xs font-semibold text-[#164478] hover:text-[#0f3057] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors"
+                          >
+                            Mark Present
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

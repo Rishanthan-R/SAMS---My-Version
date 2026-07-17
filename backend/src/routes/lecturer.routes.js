@@ -18,8 +18,12 @@ router.get('/subjects', lecturerController.getMySubjects);
 // OTP Generation & Session Management
 router.post('/otp/generate', lecturerController.generateOTP);
 
+// Live OTP Session tracker
+router.get('/otp-sessions/:id/live', lecturerController.getLiveSession);
+
 // Session History
 router.get('/sessions', lecturerController.getSessionHistory);
 router.get('/sessions/:id/attendance', lecturerController.getSessionAttendance);
+router.post('/sessions/:id/override', lecturerController.manualOverride);
 
 export default router;

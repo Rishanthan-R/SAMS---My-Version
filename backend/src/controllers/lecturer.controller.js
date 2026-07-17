@@ -175,6 +175,7 @@ export const lecturerController = {
 
       // Return the plaintext OTP *once*
       return res.status(201).json({
+        otpSessionId: otpSession.id,
         otp,
         expiresAt,
         message: 'OTP generated successfully'
@@ -244,26 +245,39 @@ export const lecturerController = {
         return res.status(403).json({ error: 'Session not found or access denied' });
       }
 
+      // Get all enrolled students for this subject
+      const { data: enrollments } = await supabaseAdmin
+        .from('enrollments')
+        .select('student_id, profiles(full_name, reg_no)')
+        .eq('subject_id', sessionData.subject_id);
+
       // Get attendance records
       const { data: attendance, error: attError } = await supabaseAdmin
         .from('attendance')
         .select(`
+          student_id,
           status,
           marked_at,
-          distance_metres,
-          profiles (full_name, reg_no)
+          distance_metres
         `)
         .eq('session_id', id);
 
       if (attError) throw attError;
 
-      const formattedList = attendance.map(a => ({
-        studentName: a.profiles?.full_name,
-        regNo: a.profiles?.reg_no,
-        status: a.status,
-        timeMarked: a.marked_at,
-        distance: Math.round(a.distance_metres || 0)
-      }));
+      const attendanceMap = new Map();
+      attendance.forEach(a => attendanceMap.set(a.student_id, a));
+
+      const formattedList = (enrollments || []).map(e => {
+        const att = attendanceMap.get(e.student_id);
+        return {
+          studentId: e.student_id,
+          studentName: e.profiles?.full_name,
+          regNo: e.profiles?.reg_no,
+          status: att ? att.status : 'absent',
+          timeMarked: att ? att.marked_at : null,
+          distance: att ? Math.round(att.distance_metres || 0) : null
+        };
+      });
 
       return res.status(200).json({
         subject: sessionData.subjects,
@@ -272,6 +286,111 @@ export const lecturerController = {
     } catch (err) {
       console.error('Error fetching session details:', err);
       return res.status(500).json({ error: 'Failed to fetch session details' });
+    }
+  },
+
+  /**
+   * POST /api/lecturer/sessions/:id/override
+   */
+  async manualOverride(req, res) {
+    try {
+      const { id: sessionId } = req.params;
+      const { studentId } = req.body;
+      const lecturerId = req.user.id;
+
+      // Verify ownership
+      const { data: sessionData, error: sessionError } = await supabaseAdmin
+        .from('sessions')
+        .select('id, total_present')
+        .eq('id', sessionId)
+        .eq('lecturer_id', lecturerId)
+        .single();
+
+      if (sessionError || !sessionData) {
+        return res.status(403).json({ error: 'Session not found or access denied' });
+      }
+
+      // Insert attendance record
+      const { error: insertError } = await supabaseAdmin
+        .from('attendance')
+        .insert({
+          session_id: sessionId,
+          student_id: studentId,
+          status: 'manual_override',
+          distance_metres: 0
+        });
+
+      if (insertError) {
+        if (insertError.code === '23505') {
+          return res.status(400).json({ error: 'Student already marked present' });
+        }
+        throw insertError;
+      }
+
+      // Update session count
+      await supabaseAdmin
+        .from('sessions')
+        .update({ total_present: sessionData.total_present + 1 })
+        .eq('id', sessionId);
+
+      return res.status(200).json({ message: 'Manual override successful' });
+    } catch (err) {
+      console.error('Error in manual override:', err);
+      return res.status(500).json({ error: 'Failed to apply manual override' });
+    }
+  },
+
+  /**
+   * GET /api/lecturer/otp-sessions/:id/live
+   */
+  async getLiveSession(req, res) {
+    try {
+      const { id: otpSessionId } = req.params;
+      const lecturerId = req.user.id;
+
+      const { data: otpSession, error: otpError } = await supabaseAdmin
+        .from('otp_sessions')
+        .select('subject_id')
+        .eq('id', otpSessionId)
+        .eq('lecturer_id', lecturerId)
+        .single();
+
+      if (otpError || !otpSession) return res.status(403).json({ error: 'Session not found' });
+
+      const { data: formalSession } = await supabaseAdmin
+        .from('sessions')
+        .select('id')
+        .eq('otp_session_id', otpSessionId)
+        .single();
+
+      const { data: enrollments } = await supabaseAdmin
+        .from('enrollments')
+        .select('student_id, profiles(full_name, reg_no)')
+        .eq('subject_id', otpSession.subject_id);
+
+      const { data: attendance } = await supabaseAdmin
+        .from('attendance')
+        .select('student_id, marked_at')
+        .eq('session_id', formalSession?.id);
+
+      const presentIds = new Set((attendance || []).map(a => a.student_id));
+      const present = [];
+      const absent = [];
+
+      (enrollments || []).forEach(e => {
+        const studentData = { id: e.student_id, name: e.profiles?.full_name, regNo: e.profiles?.reg_no };
+        if (presentIds.has(e.student_id)) {
+          const rec = attendance.find(a => a.student_id === e.student_id);
+          present.push({ ...studentData, time: rec.marked_at });
+        } else {
+          absent.push(studentData);
+        }
+      });
+
+      return res.status(200).json({ present, absent });
+    } catch (err) {
+      console.error('Error fetching live session:', err);
+      return res.status(500).json({ error: 'Failed to fetch live session data' });
     }
   }
 };
