@@ -14,6 +14,8 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 
 // Dashboards
 import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminAcademics } from './pages/admin/AdminAcademics';
 import { LecturerDashboard } from './pages/lecturer/LecturerDashboard';
 import { LecturerSubjects } from './pages/lecturer/LecturerSubjects';
 import { LecturerGenerateOTP } from './pages/lecturer/LecturerGenerateOTP';
@@ -49,11 +51,8 @@ export default function App() {
 
             {/* Admin Routes */}
             <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/users/students" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Manage Students" /></ProtectedRoute>} />
-            <Route path="/admin/users/lecturers" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Manage Lecturers" /></ProtectedRoute>} />
-            <Route path="/admin/academic/subjects" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Manage Subjects" /></ProtectedRoute>} />
-            <Route path="/admin/academic/semesters" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Manage Semesters" /></ProtectedRoute>} />
-            <Route path="/admin/assignments" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Subject Assignments" /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/academics" element={<ProtectedRoute allowedRoles={['admin']}><AdminAcademics /></ProtectedRoute>} />
             <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
 
             {/* Lecturer Routes */}
