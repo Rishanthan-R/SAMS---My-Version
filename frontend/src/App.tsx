@@ -15,6 +15,9 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 // Dashboards
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { LecturerDashboard } from './pages/lecturer/LecturerDashboard';
+import { LecturerSubjects } from './pages/lecturer/LecturerSubjects';
+import { LecturerGenerateOTP } from './pages/lecturer/LecturerGenerateOTP';
+import { LecturerAttendance } from './pages/lecturer/LecturerAttendance';
 import { StudentDashboard } from './pages/student/StudentDashboard';
 import { StudentEnroll } from './pages/student/StudentEnroll';
 import { StudentMarkAttendance } from './pages/student/StudentMarkAttendance';
@@ -55,9 +58,9 @@ export default function App() {
 
             {/* Lecturer Routes */}
             <Route path="/lecturer/dashboard" element={<ProtectedRoute allowedRoles={['lecturer']}><LecturerDashboard /></ProtectedRoute>} />
-            <Route path="/lecturer/subjects" element={<ProtectedRoute allowedRoles={['lecturer']}><PlaceholderPage title="My Subjects" /></ProtectedRoute>} />
-            <Route path="/lecturer/generate-otp" element={<ProtectedRoute allowedRoles={['lecturer']}><PlaceholderPage title="Generate OTP" /></ProtectedRoute>} />
-            <Route path="/lecturer/attendance" element={<ProtectedRoute allowedRoles={['lecturer']}><PlaceholderPage title="Attendance Records" /></ProtectedRoute>} />
+            <Route path="/lecturer/subjects" element={<ProtectedRoute allowedRoles={['lecturer']}><LecturerSubjects /></ProtectedRoute>} />
+            <Route path="/lecturer/generate-otp" element={<ProtectedRoute allowedRoles={['lecturer']}><LecturerGenerateOTP /></ProtectedRoute>} />
+            <Route path="/lecturer/attendance" element={<ProtectedRoute allowedRoles={['lecturer']}><LecturerAttendance /></ProtectedRoute>} />
 
             {/* Student Routes */}
             <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />

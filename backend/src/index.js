@@ -10,6 +10,7 @@ dotenv.config();
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import studentRoutes from './routes/student.routes.js';
+import lecturerRoutes from './routes/lecturer.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,6 +47,7 @@ app.use(globalLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/lecturer', lecturerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

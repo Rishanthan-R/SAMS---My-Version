@@ -61,7 +61,7 @@ export function StudentEnroll() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="w-full">
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Enroll in Subjects</h1>
